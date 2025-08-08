@@ -1,10 +1,10 @@
 export const SPECIES = [
+  "Sockeye",
   "Chinook",
   "Chinook Jack",
   "Chum",
   "Coho",
   "Pink",
-  "Sockeye",
 ] as const;
 
 export type Species = typeof SPECIES[number];

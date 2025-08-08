@@ -4,6 +4,7 @@ import { useNetInfo } from '@react-native-community/netinfo';
 import { SPECIES, Species } from '@/features/harvest/constants';
 import { useHarvestByArea, useHarvestBySpecies, useLastUpdated } from '@/features/harvest/hooks';
 import { formatDateISOToShort, formatQty, formatUSD, formatWeightLbs } from '@/utils/format';
+import { useFavoritesStore } from '@/features/favorites/store';
 
 function Segmented({ value, onChange }: { value: 'area' | 'species'; onChange: (v: 'area' | 'species') => void }) {
   return (
@@ -15,6 +16,16 @@ function Segmented({ value, onChange }: { value: 'area' | 'species'; onChange: (
         <Text style={{ color: value === 'species' ? 'white' : '#111827', fontWeight: '600' }}>By Species</Text>
       </Pressable>
     </View>
+  );
+}
+
+function FavoriteButton({ id }: { id: string }) {
+  const toggle = useFavoritesStore((s) => s.toggleFavorite);
+  const isFav = useFavoritesStore((s) => s.isFavorite(id));
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={isFav ? 'Unfavorite area' : 'Favorite area'} onPress={() => toggle(id)}>
+      <Text style={{ fontSize: 18 }}>{isFav ? '★' : '☆'}</Text>
+    </Pressable>
   );
 }
 
@@ -31,11 +42,14 @@ function SpeciesChips({ value, onChange }: { value: Species; onChange: (s: Speci
   );
 }
 
-function AreaCard({ name, openDate, closeDate, rows }: { name: string; openDate: string; closeDate: string; rows: Array<{ species: string; weight: string; price: string; qty: string }>; }) {
+function AreaCard({ id, name, openDate, closeDate, rows }: { id: string; name: string; openDate: string; closeDate: string; rows: Array<{ species: string; weight: string; price: string; qty: string }>; }) {
   return (
     <View style={{ borderWidth: 1, borderColor: '#D1FAE5', backgroundColor: '#F0FDF4', padding: 16, borderRadius: 12, marginHorizontal: 16 }}>
-      <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 4 }}>📍 {name}</Text>
-      <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 12 }}>Dates: {formatDateISOToShort(openDate)} → {formatDateISOToShort(closeDate)}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Text style={{ fontWeight: '700', fontSize: 16 }}>📍 {name}</Text>
+        <FavoriteButton id={id} />
+      </View>
+      <Text style={{ color: '#6B7280', fontSize: 12, marginBottom: 12, marginTop: 4 }}>Dates: {formatDateISOToShort(openDate)} → {formatDateISOToShort(closeDate)}</Text>
       {rows.map((r) => (
         <View key={r.species} style={{ flexDirection: 'row', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
           <Text style={{ flex: 1, fontWeight: '600' }}>{r.species}</Text>
@@ -48,12 +62,15 @@ function AreaCard({ name, openDate, closeDate, rows }: { name: string; openDate:
   );
 }
 
-function SpeciesResultCard({ name, species, openDate, closeDate, weight, price, qty }: { name: string; species: string; openDate: string; closeDate: string; weight: string; price: string; qty: string }) {
+function SpeciesResultCard({ id, name, species, openDate, closeDate, weight, price, qty }: { id: string; name: string; species: string; openDate: string; closeDate: string; weight: string; price: string; qty: string }) {
   return (
     <View style={{ borderWidth: 1, borderColor: '#D1FAE5', backgroundColor: '#F0FDF4', padding: 16, borderRadius: 12, marginHorizontal: 16 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={{ fontWeight: '700', fontSize: 16 }}>{name}</Text>
-        <Text style={{ paddingVertical: 4, paddingHorizontal: 8, backgroundColor: '#E5E7EB', borderRadius: 999, fontSize: 12 }}>{species}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ paddingVertical: 4, paddingHorizontal: 8, backgroundColor: '#E5E7EB', borderRadius: 999, fontSize: 12 }}>{species}</Text>
+          <FavoriteButton id={id} />
+        </View>
       </View>
       <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 4, marginBottom: 12 }}>Dates: {formatDateISOToShort(openDate)} → {formatDateISOToShort(closeDate)}</Text>
       <Text>Weight: {weight}   •   Price: {price}   •   Qty: {qty}</Text>
@@ -79,8 +96,27 @@ export default function HarvestScreen() {
     lastUpdatedQuery.refetch();
   }, [mode, areaQuery, speciesQuery, lastUpdatedQuery]);
 
-  const areaData = areaQuery.data ?? [];
-  const speciesData = speciesQuery.data ?? [];
+  const isFav = useFavoritesStore((s) => s.isFavorite);
+
+  const areaDataSorted = useMemo(() => {
+    const data = areaQuery.data ?? [];
+    return [...data].sort((a, b) => {
+      const af = isFav(a.id) ? 0 : 1;
+      const bf = isFav(b.id) ? 0 : 1;
+      if (af !== bf) return af - bf;
+      return a.name.localeCompare(b.name);
+    });
+  }, [areaQuery.data, isFav]);
+
+  const speciesDataSorted = useMemo(() => {
+    const data = speciesQuery.data ?? [];
+    return [...data].sort((a, b) => {
+      const af = isFav(a.id) ? 0 : 1;
+      const bf = isFav(b.id) ? 0 : 1;
+      if (af !== bf) return af - bf;
+      return a.name.localeCompare(b.name);
+    });
+  }, [speciesQuery.data, isFav]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -104,7 +140,7 @@ export default function HarvestScreen() {
 
       {mode === 'area' ? (
         <FlatList
-          data={areaData}
+          data={areaDataSorted}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={areaQuery.isRefetching} onRefresh={onRefresh} />}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
@@ -118,6 +154,7 @@ export default function HarvestScreen() {
             }));
             return (
               <AreaCard
+                id={item.id}
                 name={item.name}
                 openDate={item.openDate}
                 closeDate={item.closeDate}
@@ -130,13 +167,14 @@ export default function HarvestScreen() {
         <View>
           <SpeciesChips value={selectedSpecies} onChange={setSelectedSpecies} />
           <FlatList
-            data={speciesData}
+            data={speciesDataSorted}
             keyExtractor={(item) => item.id}
             refreshControl={<RefreshControl refreshing={speciesQuery.isRefetching} onRefresh={onRefresh} />}
             ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
             contentContainerStyle={{ paddingVertical: 12 }}
             renderItem={({ item }) => (
               <SpeciesResultCard
+                id={item.id}
                 name={item.name}
                 species={item.species}
                 openDate={item.openDate}
