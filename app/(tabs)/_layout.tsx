@@ -27,6 +27,13 @@ export default function TabLayout() {
         headerShown: useClientOnlyValue(false, true),
       }}>
       <Tabs.Screen
+        name="harvest"
+        options={{
+          title: 'Harvest',
+          tabBarIcon: ({ color }) => <TabBarIcon name="leaf" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{
           title: 'Tab One',

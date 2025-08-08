@@ -9,7 +9,10 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { GluestackUIProvider } from "@gluestack-ui/themed";
 import { config } from "../config/gluestack-ui.config";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -24,7 +27,18 @@ export const unstable_settings = {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 24 * 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      networkMode: 'offlineFirst',
+    },
+  },
+});
+
+const asyncStoragePersister = createAsyncStoragePersister({ storage: AsyncStorage });
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -48,11 +62,11 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: asyncStoragePersister, maxAge: 24 * 60 * 60 * 1000 }}>
       <GluestackUIProvider config={config}>
         <RootLayoutNav />
       </GluestackUIProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 
